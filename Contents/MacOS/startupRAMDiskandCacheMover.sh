@@ -143,127 +143,32 @@ make_flag()
 # -------------------------------------------------------
 
 #
-# Google Chrome Cache
-#
-move_chrome_cache()
-{
-   if [ -d "/Users/${USER}/Library/Caches/Google/Chrome" ]; then
-      if user_response "${MSG_PROMPT_FOUND}" 'Chrome'"${MSG_MOVE_CACHE}" ; then
-         close_app "Google Chrome"
-         /bin/mkdir -p /tmp/Google
-         /bin/mv ~/Library/Caches/Google/* /tmp/Google
-         /bin/mkdir -pv "${USERRAMDISK}"/Google
-         /bin/mv /tmp/Google/* "${USERRAMDISK}"/Google
-         /bin/ln -v -s -f "${USERRAMDISK}"/Google ~/Library/Caches/Google/
-         /bin/rm -rf /tmp/Google
-         # and let's create a flag for next run that we moved the cache.
-         echo "";
-      fi
-   else
-      echo "No Google Chrome folder has been found. Skipping."
-   fi
-}
-
-#
-# Chromium Cache
-#
-move_chromium_cache()
-{
-   if [ -d "/Users/${USER}/Library/Caches/Chromium" ]; then
-      if user_response "${MSG_PROMPT_FOUND}" 'Chromium/Iron'"${MSG_MOVE_CACHE}" ; then
-         close_app "SRWare Iron"
-         /bin/mkdir -p /tmp/Chromium
-         /bin/mv ~/Library/Caches/Chromium/* /tmp/Chromium
-         /bin/mkdir -pv "${USERRAMDISK}"/Chromium
-         /bin/mv /tmp/Chromium/* "${USERRAMDISK}"/Chromium
-         /bin/ln -v -s -f "${USERRAMDISK}"/Chromium ~/Library/Caches/Chromium/
-         /bin/rm -rf /tmp/Chromium
-         # and let's create a flag for next run that we moved the cache.
-         echo "";
-      fi
-   else
-      echo "No Chromium folder has been found. Skipping."
-   fi
-}
-
-#
-# Chrome Canary Cache
-#
-move_chrome_chanary_cache()
-{
-   if [ -d "/Users/${USER}/Library/Caches/Google/Chrome Canary" ]; then
-      if user_response "${MSG_PROMPT_FOUND}" 'Chrome Canary'"${MSG_MOVE_CACHE}" ; then
-         close_app "Chrome Canary"
-         /bin/rm -rf ~/Library/Caches/Google/Chrome\ Canary/*
-         /bin/mkdir -p "${USERRAMDISK}"/Google/Chrome\ Canary/Default
-         /bin/ln -s "${USERRAMDISK}"/Google/Chrome\ Canary/Default ~/Library/Caches/Google/Chrome\ Canary/Default
-      fi
-   fi
-}
-
-#
-# Safari Cache
-#
-move_safari_cache()
-{
-   if [ -d "/Users/${USER}/Library/Caches/com.apple.Safari" ]; then
-      if user_response "${MSG_PROMPT_FOUND}" 'Safari'"${MSG_MOVE_CACHE}"; then
-         close_app "Safari"
-         /bin/rm -rf ~/Library/Caches/com.apple.Safari
-         /bin/mkdir -p "${USERRAMDISK}"/Apple/Safari
-         /bin/ln -s "${USERRAMDISK}"/Apple/Safari ~/Library/Caches/com.apple.Safari
-         echo "Moved Safari cache."
-      fi
-   fi
-}
-
-#
-# iTunes Cache
-#
-move_itunes_cache()
-{
-   if [ -d "/Users/${USER}/Library/Caches/com.apple.iTunes" ]; then
-      if user_response "${MSG_PROMPT_FOUND}" 'iTunes'"${MSG_MOVE_CACHE}" ; then
-         close_app "iTunes"
-         /bin/rm -rf /Users/"${USER}"/Library/Caches/com.apple.iTunes
-         /bin/mkdir -pv "${USERRAMDISK}"/Apple/iTunes
-         /bin/ln -v -s "${USERRAMDISK}"/Apple/iTunes ~/Library/Caches/com.apple.iTunes
-         echo "Moved iTunes cache."
-      fi
-   fi
-}
-
-#
 # Intellij Idea
 #
 move_idea_cache()
 {
+   idea_path=""
+   # check default Applications folder
    if [ -d "/Applications/IntelliJ IDEA.app" ]; then
+      idea_path="/Applications/IntelliJ IDEA.app"
+   fi
+
+   # For jetbrains toolbox a different logic
+   if [ -d "${HOME}/Library/Application Support/JetBrains/Toolbox/apps/IDEA-U" ];then
+      jetbrains_idea_path="${HOME}/Library/Application Support/JetBrains/Toolbox/apps/IDEA-U"
+      idea_channel=$(ls -1 "${jetbrains_idea_path}" | head -1)
+      idea_version=$(ls -1 "${jetbrains_idea_path}/${idea_channel}" | sort -r | head -1)
+      idea_path="${jetbrains_idea_path}/${idea_channel}/${idea_version}/IntelliJ IDEA.app"
+   fi
+
+   if [ -d "${idea_path}" ]; then
       if user_response "${MSG_PROMPT_FOUND}" 'IntelliJ IDEA'"${MSG_MOVE_CACHE}" ; then
          close_app "IntelliJ Idea"
          # make a backup of config - will need it when uninstalling
-         cp -f /Applications/IntelliJ\ IDEA.app/Contents/bin/idea.properties /Applications/IntelliJ\ IDEA.app/Contents/bin/idea.properties.back
+         cp -f "${idea_path}/Contents/bin/idea.properties" "${idea_path}/Contents/bin/idea.properties.back"
          # Idea will create those dirs
-         echo "idea.system.path=${USERRAMDISK}/Idea" >> /Applications/IntelliJ\ IDEA.app/Contents/bin/idea.properties
-         echo "idea.log.path=${USERRAMDISK}/Idea/logs" >> /Applications/IntelliJ\ IDEA.app/Contents/bin/idea.properties
-         echo "Moved IntelliJ cache."
-      fi
-   fi
-}
-
-#
-# Intellij Idea Community Edition
-#
-move_ideace_cache()
-{
-   if [ -d "/Applications/IntelliJ IDEA CE.app" ]; then
-      if user_response "${MSG_PROMPT_FOUND}" 'IntelliJ IDEA CE'"${MSG_MOVE_CACHE}" ; then
-         close_app "IntelliJ Idea CE"
-         # make a backup of config - will need it when uninstalling
-         cp -f /Applications/IntelliJ\ IDEA\ CE.app/Contents/bin/idea.properties /Applications/IntelliJ\ IDEA\ CE.app/Contents/bin/idea.properties.back
-         # Idea will create those dirs
-         echo "idea.system.path=${USERRAMDISK}/Idea" >> /Applications/IntelliJ\ IDEA\ CE.app/Contents/bin/idea.properties
-         echo "idea.log.path=${USERRAMDISK}/Idea/logs" >> /Applications/IntelliJ\ IDEA\ CE.app/Contents/bin/idea.properties
+         echo "idea.system.path=${USERRAMDISK}/Idea" >> "${idea_path}/Contents/bin/idea.properties"
+         echo "idea.log.path=${USERRAMDISK}/Idea/logs" >> "${idea_path}/Contents/bin/idea.properties"
          echo "Moved IntelliJ cache."
       fi
    fi
@@ -275,102 +180,7 @@ move_ideace_cache()
 #
 create_intermediate_folder_for_intellij_projects()
 {
-   [ -d /Volumes/ramdisk/"${USER}"/compileroutput ] || mkdir -p /Volumes/ramdisk/"${USER}"/compileroutput
-}
-
-#
-# Android Studio
-#
-move_android_studio_cache()
-{
-   if [ -d "/Applications/Android Studio.app" ]; then
-      if user_response "${MSG_PROMPT_FOUND}" 'Android Studio'"${MSG_MOVE_CACHE}" ; then
-         echo "moving Android Studio cache";
-         close_app "Android Studio"
-         # make a backup of config - will need it when uninstalling
-         cp -f /Applications/Android\ Studio.app/Contents/bin/idea.properties /Applications/Android\ Studio.app/Contents/bin/idea.properties.back
-         # Idea will create those dirs
-         echo "idea.system.path=${USERRAMDISK}/AndroidStudio" >> /Applications/Android\ Studio.app/Contents/bin/idea.properties
-         echo "idea.log.path=${USERRAMDISK}/AndroidStudio/logs" >> /Applications/Android\ Studio.app/Contents/bin/idea.properties
-         echo "Moved Android cache."
-      fi
-   fi
-}
-
-#
-# Clion
-#
-move_clion_cache()
-{
-   if [ -d "/Applications/Clion.app" ]; then
-      if user_response "${MSG_PROMPT_FOUND}" 'Clion'"${MSG_MOVE_CACHE}" ; then
-         echo "moving Clion cache";
-         close_app "Clion"
-         # make a backup of config - will need it when uninstalling
-         cp -f /Applications/Clion.app/Contents/bin/idea.properties /Applications/Clion.app/Contents/bin/idea.properties.back
-         # Idea will create those dirs
-         echo "idea.system.path=${USERRAMDISK}/Clion" >> /Applications/Clion.app/Contents/bin/idea.properties
-         echo "idea.log.path=${USERRAMDISK}/Clion/logs" >> /Applications/Clion.app/Contents/bin/idea.properties
-         echo "Moved Clion cache."
-      fi
-   fi
-}
-
-#
-# AppCode - ios
-#
-move_appcode_cache()
-{
-   if [ -d "/Applications/AppCode.app" ]; then
-      if user_response "${MSG_PROMPT_FOUND}" 'AppCode'"${MSG_MOVE_CACHE}" ; then
-         echo "moving AppCode cache";
-         close_app "AppCode"
-         # make a backup of config - will need it when uninstalling
-         cp -f /Applications/AppCode.app/Contents/bin/idea.properties /Applications/AppCode.app/Contents/bin/idea.properties.back
-         # Need to create those dirs
-         echo "idea.system.path=${USERRAMDISK}/AppCode" >> /Applications/AppCode.app/Contents/bin/idea.properties
-         echo "idea.log.path=${USERRAMDISK}/AppCode/logs" >> /Applications/AppCode.app/Contents/bin/idea.properties
-         mkdir -p "${USERRAMDISK}"/AppCode/logs
-         echo "Moved AppCode cache."
-      fi
-   fi
-}
-
-#
-# Xcode - ios
-#
-move_xcode_cache()
-{
-   if [ -d "/Applications/Xcode.app" ]; then
-      if user_response "${MSG_PROMPT_FOUND}" 'Xcode'"${MSG_MOVE_CACHE}" ; then
-         echo "moving XCode cache..";
-         echo "deleting ~/Library/Developer/Xcode/DerivedData"
-
-         /bin/rm -rvf ~/Library/Developer/Xcode/DerivedData
-         /bin/mkdir -pv "${USERRAMDISK}"/Apple/Xcode
-         /bin/ln -v -s "${USERRAMDISK}"/Apple/Xcode /Users/"${USER}"/Library/Developer/Xcode/DerivedData
-         echo "Moved Xcode cache."
-      fi
-   fi
-}
-
-#
-# PhpStorm
-#
-move_phpstorm_cache()
-{
-   if [ -d "/Applications/PhpStorm.app" ]; then
-      if user_response "${MSG_PROMPT_FOUND}" 'PhpStorm'"${MSG_MOVE_CACHE}" ; then
-         echo "moving PHPStorm cache";
-         close_app "PhpStorm"
-         # make a backup of config - will need it when uninstalling
-         cp -f /Applications/PhpStorm.app/Contents/bin/idea.properties /Applications/PhpStorm.app/Contents/bin/idea.properties.back
-         # Idea will create those dirs
-         echo "idea.system.path=${USERRAMDISK}/PhpStorm" >> /Applications/PhpStorm.app/Contents/bin/idea.properties
-         echo "idea.log.path=${USERRAMDISK}/PhpStorm/logs" >> /Applications/PhpStorm.app/Contents/bin/idea.properties
-         echo "Moved PhpStorm cache."
-      fi
-   fi
+   [ -d "${USERRAMDISK}"/compileroutput ] || mkdir -p "${USERRAMDISK}"/compileroutput
 }
 
 # -----------------------------------------------------------------------------------
@@ -381,19 +191,19 @@ main() {
    # and create our RAM disk
    mk_ram_disk
    # move the caches
-   move_chrome_cache
-   move_chromium_cache
-   move_safari_cache
+   # move_chrome_cache
+   # move_chromium_cache
+   # move_safari_cache
    move_idea_cache
-   move_ideace_cache
+   # move_ideace_cache
    # create intermediate folder for intellij projects output
    create_intermediate_folder_for_intellij_projects
-   move_itunes_cache
-   move_android_studio_cache
-   move_clion_cache
-   move_appcode_cache
-   move_xcode_cache
-   move_phpstorm_cache
+   # move_itunes_cache
+   # move_android_studio_cache
+   # move_clion_cache
+   # move_appcode_cache
+   # move_xcode_cache
+   # move_phpstorm_cache
    echo "echo use \"${mount_point}/compileroutput\" for intelliJ project output directory."
    echo "All good - I have done my job. Your apps should fly."
 }
