@@ -114,7 +114,7 @@ move_idea_cache()
          # make a backup of config - will need it when uninstalling
          cp -f "${HOME}/idea.properties" "${HOME}/idea.properties.back" &>/dev/null
          # Idea will create those dirs
-         echo "idea.system.path=${MOUNT_POINT}/Idea" >> "${HOME}/idea.properties"
+         echo "idea.system.path=${MOUNT_POINT}/Idea" > "${HOME}/idea.properties"
          echo "idea.log.path=${MOUNT_POINT}/Idea/logs" >> "${HOME}/idea.properties"
          echo "Moved IntelliJ IDEA cache"
 
