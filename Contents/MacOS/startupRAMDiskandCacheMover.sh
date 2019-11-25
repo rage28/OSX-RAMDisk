@@ -20,16 +20,14 @@ set -x
 # 1024 2048 3072 4096 5120 6144 7168 8192
 # By default will use 1/4 of your RAM
 
-ramfs_size_mb=$(sysctl hw.memsize | awk '{print $2;}')
-ramfs_size_mb=$((ramfs_size_mb/1024/1024/4))
+RAM_SIZE_MB=$(sysctl hw.memsize | awk '{print $2;}')
+RAMFS_SIZE_MB=$((RAM_SIZE_MB/1024/1024/4))
 
-mount_point=/Users/${USER}/ramdisk
-ramfs_size_sectors=$((ramfs_size_mb*1024*1024/512))
-ramdisk_device=$(hdid -nomount ram://${ramfs_size_sectors} | xargs)
-USERRAMDISK="${mount_point}"
+MOUNT_POINT=${HOME}/RAMDISK
+RAMFS_SIZE_SECTORS=$((RAMFS_SIZE_MB*1024*1024/512))
+RAMDISK_DEVICE=$(hdid -nomount ram://${RAMFS_SIZE_SECTORS} | xargs)
 
-MSG_MOVE_CACHE=". Do you want me to move its cache? Note: It will close the app."
-MSG_PROMPT_FOUND="I found "
+MSG_MOVE_CACHE="Do you wish to move it's cache? It will kill the app process"
 
 #
 # Checks for the user response.
@@ -66,75 +64,29 @@ close_app()
 mk_ram_disk()
 {
    # unmount if exists and mounts if doesn't
-   umount -f "${mount_point}"
-   newfs_hfs -v 'ramdisk' "${ramdisk_device}"
-   mkdir -p "${mount_point}"
-   mount -o noatime -t hfs "${ramdisk_device}" "${mount_point}"
+   umount -f "${MOUNT_POINT}"
+   newfs_hfs -v 'RAMDISK' "${RAMDISK_DEVICE}"
+   mkdir -p "${MOUNT_POINT}"
+   mount -o noatime -t hfs "${RAMDISK_DEVICE}" "${MOUNT_POINT}"
 
-   echo "created RAM disk."
+   echo "Created RAM Disk"
    # Hide RAM disk - we don't really need it to be annoiyng in finder.
    # comment out should you need it.
    hide_ramdisk
-   echo "RAM disk hidden"
-}
-
-# adds rsync to be executed each 5 min for current user
-add_rsync_to_cron()
-{
-   #todo fixme
-   crontab -l | { cat; echo "5 * * * * rsync"; } | crontab -
-}
-
-# Open an application
-open_app()
-{
-   osascript -e "tell app \"${1}\" to activate"
+   echo "RAM Disk hidden"
 }
 
 # Hide RamDisk directory
 hide_ramdisk()
 {
-   /usr/bin/chflags hidden "${mount_point}"
+   /usr/bin/chflags hidden "${MOUNT_POINT}"
 }
 
 # Checks that we have
 # all required utils before proceeding
 check_requirements()
 {
-   hash rsync 2>/dev/null || { echo >&2 "No rsync has been found.  Aborting. If you use brew install using: 'brew install rsync'"; exit 1; }
    hash newfs_hfs 2>/dev/null || { echo >&2 "No newfs_hfs has been found.  Aborting."; exit 1; }
-}
-
-#
-# Check existence of the string in a file.
-#
-check_string_in_file()
-{
-   if  grep "${1}" "${2}" == 0; then
-      return 0;
-   else
-      return 1;
-   fi
-}
-
-#
-# Check for the flag
-#
-check_for_flag()
-{
-   if [ -e "${1}" ] ; then
-      return 0;
-   else
-      return 1;
-   fi
-}
-
-#
-# Creates flag indicating the apps cache has been moved.
-#
-make_flag()
-{
-   echo "" > /Applications/OSX-RAMDisk.app/"${1}"
 }
 
 # ------------------------------------------------------
@@ -147,40 +99,34 @@ make_flag()
 #
 move_idea_cache()
 {
-   idea_path=""
-   # check default Applications folder
-   if [ -d "/Applications/IntelliJ IDEA.app" ]; then
-      idea_path="/Applications/IntelliJ IDEA.app"
-   fi
+   echo
+   if user_response 'IntelliJ IDEA: '"${MSG_MOVE_CACHE}" ; then
+      echo 'Target User: '
+      read -r user_name
 
-   # For jetbrains toolbox a different logic
-   if [ -d "${HOME}/Library/Application Support/JetBrains/Toolbox/apps/IDEA-U" ];then
-      jetbrains_idea_path="${HOME}/Library/Application Support/JetBrains/Toolbox/apps/IDEA-U"
-      idea_channel=$(ls -1 "${jetbrains_idea_path}" | head -1)
-      idea_version=$(ls -1 "${jetbrains_idea_path}/${idea_channel}" | sort -r | head -1)
-      idea_path="${jetbrains_idea_path}/${idea_channel}/${idea_version}/IntelliJ IDEA.app"
-   fi
-
-   if [ -d "${idea_path}" ]; then
-      if user_response "${MSG_PROMPT_FOUND}" 'IntelliJ IDEA'"${MSG_MOVE_CACHE}" ; then
+      if [ -n "${user_name}" ]; then
          close_app "IntelliJ Idea"
+         # create Idea config
+         [ -d "${MOUNT_POINT}"/Idea ] || {
+            mkdir -p "${MOUNT_POINT}"/Idea
+            chown -R "${user_name}":admin "${MOUNT_POINT}"/Idea
+         }
          # make a backup of config - will need it when uninstalling
-         cp -f "${idea_path}/Contents/bin/idea.properties" "${idea_path}/Contents/bin/idea.properties.back"
+         cp -f "${HOME}/idea.properties" "${HOME}/idea.properties.back" &>/dev/null
          # Idea will create those dirs
-         echo "idea.system.path=${USERRAMDISK}/Idea" >> "${idea_path}/Contents/bin/idea.properties"
-         echo "idea.log.path=${USERRAMDISK}/Idea/logs" >> "${idea_path}/Contents/bin/idea.properties"
-         echo "Moved IntelliJ cache."
+         echo "idea.system.path=${MOUNT_POINT}/Idea" >> "${HOME}/idea.properties"
+         echo "idea.log.path=${MOUNT_POINT}/Idea/logs" >> "${HOME}/idea.properties"
+         echo "Moved IntelliJ IDEA cache"
+
+         # Creates intelliJ intermediate output folder
+         # to be used by java/scala projects
+         [ -d "${MOUNT_POINT}"/compileroutput ] || {
+            mkdir -p "${MOUNT_POINT}"/compileroutput
+            chown -R "${user_name}":admin "${MOUNT_POINT}"/compileroutput
+         }
+         echo "Use \"${MOUNT_POINT}/compileroutput\" as IntelliJ IDEA compiler output directory"
       fi
    fi
-}
-
-#
-# Creates intelliJ intermediate output folder
-# to be used by java/scala projects.
-#
-create_intermediate_folder_for_intellij_projects()
-{
-   [ -d "${USERRAMDISK}"/compileroutput ] || mkdir -p "${USERRAMDISK}"/compileroutput
 }
 
 # -----------------------------------------------------------------------------------
@@ -188,24 +134,11 @@ create_intermediate_folder_for_intellij_projects()
 # -----------------------------------------------------------------------------------
 main() {
    check_requirements
-   # and create our RAM disk
    mk_ram_disk
-   # move the caches
-   # move_chrome_cache
-   # move_chromium_cache
-   # move_safari_cache
    move_idea_cache
-   # move_ideace_cache
-   # create intermediate folder for intellij projects output
-   create_intermediate_folder_for_intellij_projects
-   # move_itunes_cache
-   # move_android_studio_cache
-   # move_clion_cache
-   # move_appcode_cache
-   # move_xcode_cache
-   # move_phpstorm_cache
-   echo "echo use \"${mount_point}/compileroutput\" for intelliJ project output directory."
-   echo "All good - I have done my job. Your apps should fly."
+
+   echo
+   echo "All done. Your apps should fly now"
 }
 
 main "$@"
