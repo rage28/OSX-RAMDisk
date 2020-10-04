@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 
-set -x
+# set -x
 
-#
 # Copyright Zafar Khaydarov
 #
 # This is about to create a RAM disk in OS X and move the apps caches into it
@@ -19,7 +18,6 @@ set -x
 # The RAM amount you want to allocate for RAM disk. One of
 # 1024 2048 3072 4096 5120 6144 7168 8192
 # By default will use 1/4 of your RAM
-
 RAM_SIZE_MB=$(sysctl hw.memsize | awk '{print $2;}')
 RAMFS_SIZE_MB=$((RAM_SIZE_MB/1024/1024/4))
 
@@ -27,66 +25,39 @@ MOUNT_POINT=${HOME}/RAMDISK
 RAMFS_SIZE_SECTORS=$((RAMFS_SIZE_MB*1024*1024/512))
 RAMDISK_DEVICE=$(hdid -nomount ram://${RAMFS_SIZE_SECTORS} | xargs)
 
-MSG_MOVE_CACHE="Do you wish to move it's cache? It will kill the app process"
 
-#
-# Checks for the user response.
-#
-user_response()
-{
-   echo -ne "$@" "[Y/n]  "
-   read -r response
-
-   case ${response} in
-      [yY][eE][sS]|[yY]|"")
-         true
-         ;;
-      [nN][oO]|[nN])
-         false
-         ;;
-      *)
-         user_response "$@"
-         ;;
-   esac
-}
-
-#
 # Closes passed as arg app by name
-#
-close_app()
-{
+close_app() {
    osascript -e "quit app \"${1}\""
 }
 
-#
 # Creates RAM Disk.
-#
-mk_ram_disk()
-{
-   # unmount if exists and mounts if doesn't
+mk_ram_disk() {
+   # Unmount if already exists
    umount -f "${MOUNT_POINT}"
    newfs_hfs -v 'RAMDISK' "${RAMDISK_DEVICE}"
    mkdir -p "${MOUNT_POINT}"
    mount -o noatime -t hfs "${RAMDISK_DEVICE}" "${MOUNT_POINT}"
-
    echo "Created RAM Disk"
-   # Hide RAM disk - we don't really need it to be annoiyng in finder.
-   # comment out should you need it.
-   hide_ramdisk
+
+   # Hide RAM disk from finder
+   /usr/bin/chflags hidden "${MOUNT_POINT}"
    echo "RAM Disk hidden"
 }
 
-# Hide RamDisk directory
-hide_ramdisk()
-{
-   /usr/bin/chflags hidden "${MOUNT_POINT}"
-}
+# Checks prerequisite of having all the required utils before proceeding
+check_prereq() {
+   # Check if running as sudo
+   [ -z "${SUDO_USER}" ] && {
+      echo "Not running as admin. Aborting!"
+      exit 1
+   }
 
-# Checks that we have
-# all required utils before proceeding
-check_requirements()
-{
-   hash newfs_hfs 2>/dev/null || { echo >&2 "No newfs_hfs has been found.  Aborting."; exit 1; }
+   # check for binary newfs_hfs
+   hash newfs_hfs 2>/dev/null || { 
+      echo >&2 "The binary 'newfs_hfs' has not been found. Aborting!"
+      exit 1 
+   }
 }
 
 # ------------------------------------------------------
@@ -94,48 +65,69 @@ check_requirements()
 # Add yours at the end.
 # -------------------------------------------------------
 
-#
-# Intellij Idea
-#
-move_idea_cache()
-{
+# Add all IntelliJ Products
+move_intellij_products() {
+   # Close all the running apps
+   echo "Closing all Intellij apps in 3 seconds..."
+   sleep 3
+
+   close_app "IntelliJ Idea Ultimate"
+   close_app "WebStorm"
+   close_app "PyCharm Professional"
+   close_app "DataGrip"
+
+   # Create the base caches directory
+   INTELLIJ_BASE_CACHE_DIR="${MOUNT_POINT}/IntelliJ"
+   [ -d "${INTELLIJ_BASE_CACHE_DIR}" ] || {
+      echo "Creating the cache directory @ ${INTELLIJ_BASE_CACHE_DIR}"
+      mkdir -p "${INTELLIJ_BASE_CACHE_DIR}"
+      chown -R "${SUDO_USER}:admin" "${INTELLIJ_BASE_CACHE_DIR}"
+   }
+
+   # Create the base config directory
+   INTELLIJ_BASE_CONF_DIR="/Users/${SUDO_USER}/.intellij-conf"
+   [ -d "${INTELLIJ_BASE_CONF_DIR}" ] || {
+      echo "Create the config directory @ ${INTELLIJ_BASE_CONF_DIR}"
+      mkdir -p "${INTELLIJ_BASE_CONF_DIR}"
+      chown -R "${SUDO_USER}:admin" "${INTELLIJ_BASE_CONF_DIR}"
+   }
+
+   # Process IDE specific changes
+   declare -a INTELLIJ_APPS=("IDEA" "WEBIDE" "PYCHARM" "DATAGRIP")
+   for IDE in "${INTELLIJ_APPS[@]}"
+   do
+      echo
+      echo "Processing ${IDE}"
+      # Create IDE specific cache directory
+      mkdir -p "${INTELLIJ_BASE_CACHE_DIR}/${IDE}"
+      mkdir -p "${INTELLIJ_BASE_CACHE_DIR}/${IDE}/compileroutput"
+      chown -R "${SUDO_USER}:admin" "${INTELLIJ_BASE_CACHE_DIR}/${IDE}"
+
+      # Create IDE specific config directory
+      mkdir -p "${INTELLIJ_BASE_CONF_DIR}/${IDE}"
+      chown -R "${SUDO_USER}:admin" "${INTELLIJ_BASE_CONF_DIR}/${IDE}"
+
+      # Create IDE specific config entries
+      echo "idea.system.path=${INTELLIJ_BASE_CACHE_DIR}/${IDE}/system" > "${INTELLIJ_BASE_CONF_DIR}/${IDE}/idea.properties"
+      echo "idea.log.path=${INTELLIJ_BASE_CACHE_DIR}/${IDE}/logs" >> "${INTELLIJ_BASE_CONF_DIR}/${IDE}/idea.properties"
+
+      # User message
+      echo "Successfully processed ${IDE}. Please add the following to your path"
+      echo "export ${IDE}_PROPERTIES=${INTELLIJ_BASE_CONF_DIR}/${IDE}/idea.properties"
+   done
+
    echo
-   if user_response 'IntelliJ IDEA: '"${MSG_MOVE_CACHE}" ; then
-      echo 'Target User: '
-      read -r user_name
-
-      if [ -n "${user_name}" ]; then
-         close_app "IntelliJ Idea"
-         # create Idea config
-         [ -d "${MOUNT_POINT}"/Idea ] || {
-            mkdir -p "${MOUNT_POINT}"/Idea
-            chown -R "${user_name}":admin "${MOUNT_POINT}"/Idea
-         }
-         # make a backup of config - will need it when uninstalling
-         cp -f "${HOME}/idea.properties" "${HOME}/idea.properties.back" &>/dev/null
-         # Idea will create those dirs
-         echo "idea.system.path=${MOUNT_POINT}/Idea" > "${HOME}/idea.properties"
-         echo "idea.log.path=${MOUNT_POINT}/Idea/logs" >> "${HOME}/idea.properties"
-         echo "Moved IntelliJ IDEA cache"
-
-         # Creates intelliJ intermediate output folder
-         # to be used by java/scala projects
-         [ -d "${MOUNT_POINT}"/compileroutput ] || {
-            mkdir -p "${MOUNT_POINT}"/compileroutput
-            chown -R "${user_name}":admin "${MOUNT_POINT}"/compileroutput
-         }
-         echo "Use \"${MOUNT_POINT}/compileroutput\" as IntelliJ IDEA compiler output directory"
-      fi
-   fi
+   echo "Successfully processed all Intellij apps"
 }
 
 # -----------------------------------------------------------------------------------
 # The entry point
 # -----------------------------------------------------------------------------------
 main() {
-   check_requirements
+   check_prereq
    mk_ram_disk
-   move_idea_cache
+   
+   move_intellij_products
 
    echo
    echo "All done. Your apps should fly now"
